@@ -9,17 +9,30 @@ public class PhysicsHand : MonoBehaviour
     [SerializeField] float rotDamping = 0.9f;
     [SerializeField] Rigidbody playerRigidbody;
     [SerializeField] Transform target;
+
+    [Space]
+    [Header("Springs")]
+    [SerializeField] float climbForce = 1000f;
+    [SerializeField] float climbDrag = 500f;
+    
+    Vector3 _previousPosition;
     Rigidbody _rigidbody;
+    bool _isColliding;
+
     void Start()
     {
+        transform.position = target.position;
+        transform.rotation = target.rotation;
        _rigidbody = GetComponent<Rigidbody>();
        _rigidbody.maxAngularVelocity = float.PositiveInfinity;
+       _previousPosition = transform.position;
     }
 
     void FixedUpdate()
     {
         PIDMovement();
         PIDRotation();
+        if (_isColliding) HookesLaw();
     }
     void PIDMovement()
     {
@@ -51,5 +64,33 @@ public class PhysicsHand : MonoBehaviour
         axis *= Mathf.Deg2Rad;
         Vector3 torque = ksg * axis * angle + -_rigidbody.angularVelocity * kdg;
         _rigidbody.AddTorque(torque, ForceMode.Acceleration);
+    }
+    void HookesLaw()
+    {
+        Vector3 displacementFromResting = transform.position - target.position;
+        Vector3 force = displacementFromResting * climbForce;
+        float drag = GetDrag();
+
+        playerRigidbody.AddForce(force, ForceMode.Acceleration);
+        playerRigidbody.AddForce(drag * -playerRigidbody.velocity * climbDrag, ForceMode.Acceleration);
+    }
+
+    float GetDrag()
+    {
+        Vector3 handvelocity = (target.localPosition - _previousPosition) / Time.fixedDeltaTime;
+        float drag = 1 / handvelocity.magnitude + 0.01f;
+        drag = drag > 1 ? 1 : drag;
+        drag = drag < 0.03f ? 0.03f : drag;
+        _previousPosition = transform.position;
+        return drag;
+    }
+    
+    void OnCollisionEnter(Collision collision)
+    {
+        _isColliding = true;
+    }
+    void OnCollisionExit(Collision other)
+    {
+        _isColliding = false;
     }
 }
